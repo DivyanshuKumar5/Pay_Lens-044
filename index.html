@@ -1,87 +1,50 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UPI Fraud Scanner</title>
-    <style>
-        body { font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: auto; }
-        .box { border: 1px solid #ccc; padding: 15px; margin-bottom: 20px; border-radius: 8px; }
-        input, button { width: 100%; padding: 10px; margin: 5px 0; box-sizing: border-box; }
-        button { background-color: #0070f3; color: white; border: none; cursor: pointer; }
-        button:hover { background-color: #005bb5; }
-        #result { background: #f9f9f9; padding: 10px; margin-top: 10px; border-left: 4px solid #0070f3; }
-    </style>
-</head>
-<body>
+// Assuming you have an input like: <input type="file" id="imageInput" />
+// and a button like: <button id="analyzeBtn">Analyze</button>
 
-    <h2>UPI Fraud Scanner</h2>
+document.getElementById('analyzeBtn').addEventListener('click', async () => {
+    const fileInput = document.getElementById('imageInput');
+    const file = fileInput.files[0];
 
-    <div class="box">
-        <h3>1. Check Transaction Details</h3>
-        <input type="text" id="sender" placeholder="Sender ID (e.g., user@ybl)">
-        <input type="text" id="receiver" placeholder="Receiver ID (e.g., shop@okhdfc)">
-        <input type="number" id="amount" placeholder="Amount (₹)">
-        <button onclick="checkText()">Analyze Transaction</button>
-    </div>
+    if (!file) {
+        alert("Please select an image first.");
+        return;
+    }
 
-    <div class="box">
-        <h3>2. Scan Screenshot</h3>
-        <input type="file" id="imageInput" accept="image/*">
-        <button onclick="checkImage()">Analyze Screenshot</button>
-    </div>
+    // Show a loading message to the user here
+    console.log("Reading image...");
 
-    <div id="result">Results will appear here...</div>
+    // 1. Convert the file to a Base64 String
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    
+    reader.onloadend = async () => {
+        // Strip the metadata prefix (e.g., "data:image/jpeg;base64,") to get pure data
+        const base64String = reader.result.split(',')[1]; 
+        const mimeType = file.type;
 
-    <script>
-        // Send Text Data to Backend
-        async function checkText() {
-            const resultDiv = document.getElementById('result');
-            resultDiv.innerText = "Analyzing transaction...";
-            
-            const payload = {
-                sender: document.getElementById('sender').value,
-                receiver: document.getElementById('receiver').value,
-                amount: document.getElementById('amount').value
-            };
+        try {
+            // 2. Send the JSON to your Vercel API
+            const response = await fetch('/api/analyze-image', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    imageBase64: base64String, 
+                    mimeType: mimeType 
+                })
+            });
 
-            try {
-                const response = await fetch('/api/analyze', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                const data = await response.json();
-                resultDiv.innerHTML = `<strong>AI Analysis:</strong> ${data.analysis} <br><br> <strong>Risk Score:</strong> ${data.score}/100`;
-            } catch (err) {
-                resultDiv.innerText = "Error connecting to server.";
+            const data = await response.json();
+
+            if (data.success) {
+                // 3. Display the result on your website!
+                console.log("Analysis Complete:", data.analysis);
+                // Update your HTML DOM here to show data.analysis
+            } else {
+                console.error("Error from API:", data.error);
+                alert("Scan failed. Check console.");
             }
+        } catch (err) {
+            console.error("Network Error:", err);
         }
-
-        // Send Image Data to Backend
-        async function checkImage() {
-            const fileInput = document.getElementById('imageInput');
-            const resultDiv = document.getElementById('result');
-            
-            if (!fileInput.files[0]) return alert("Please select an image first.");
-            resultDiv.innerText = "Scanning image for fraud markers...";
-
-            const reader = new FileReader();
-            reader.readAsDataURL(fileInput.files[0]);
-            reader.onload = async () => {
-                try {
-                    const response = await fetch('/api/analyze-image', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ imageBase64: reader.result })
-                    });
-                    const data = await response.json();
-                    resultDiv.innerHTML = `<strong>Image Analysis:</strong> ${data.analysis}`;
-                } catch (err) {
-                    resultDiv.innerText = "Error analyzing image.";
-                }
-            };
-        }
-    </script>
-</body>
-</html>
+    };
+});
